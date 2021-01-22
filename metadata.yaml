@@ -19,7 +19,8 @@ description: >
   Redis charm for Kubernetes deployments.
 tags:
   - databases
-  - k8s
+  - kubernetes
+  - redis
 summary: >
   Redis is an open source (BSD licensed), in-memory data structure store, used
   as a database, cache, and message broker. Redis provides data structures
@@ -39,3 +40,11 @@ series:
 provides:
   db:
     interface: redis
+deployment:
+  min-version: '1.16'
+  type: stateful
+  service: loadbalancer
+storage:
+  database:
+    type: filesystem
+    location: /var/opt/redis
