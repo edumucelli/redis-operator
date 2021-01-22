@@ -1,0 +1,11 @@
+description: redis
+bundle: kubernetes
+applications:
+  redis-standalone:
+    charm: "../redis.charm"
+    scale: 1
+    series: kubernetes
+    options:
+      standalone: true
+    resources:
+      redis-image: redis:6.0

@@ -22,6 +22,7 @@ from ops.charm import CharmBase, ConfigChangedEvent
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from oci_image import OCIImageResource, OCIImageResourceError
 
 from pod_spec import PodSpecBuilder
 
@@ -44,6 +45,7 @@ class RedisCharm(CharmBase):
         self.log_debug('Initializing charm')
 
         # self.state.set_default(redis_initialized=False)
+        self.image = OCIImageResource(self, "redis-image")
 
         self.framework.observe(self.on.start, self.configure_pod)
         self.framework.observe(self.on.stop, self.on_stop)
@@ -71,10 +73,20 @@ class RedisCharm(CharmBase):
         self.log_debug(msg)
         self.model.unit.status = WaitingStatus(msg)
 
+        # Fetch image information
+        try:
+            self.unit.status = WaitingStatus("Fetching image information")
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            self.unit.status = BlockedStatus(
+                "Error fetching image information")
+            return
+
+        # Build Pod spec
         builder = PodSpecBuilder(
             name=self.model.app.name,
             port=DEFAULT_PORT,
-            image_info=self.model.config['image'],
+            image_info=image_info,
         )
 
         spec = builder.build_pod_spec()

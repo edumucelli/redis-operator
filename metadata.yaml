@@ -48,3 +48,8 @@ storage:
   database:
     type: filesystem
     location: /var/opt/redis
+resources:
+  redis-image:
+    type: oci-image
+    description: upstream docker image for redis
+    upstream-source: 'redis:6.0'
