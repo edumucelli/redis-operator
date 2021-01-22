@@ -13,9 +13,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-ops~=1.1.0
-redis~=3.5.3
+import logging
 
-PyYAML~=5.3.1
-charmhelpers~=0.20.20
-git+https://github.com/juju-solutions/resource-oci-image#egg=oci-image
+import redis
+
+logger = logging.getLogger(__name__)
+
+
+class RedisClient:
+    def __init__(self, host: str, port: int):
+        self.host = host
+        self.port = port
+
+    def is_ready(self) -> bool:
+        try:
+            redis.Redis(host=self.host, port=self.port)
+            logger.debug("Redis service is ready.")
+            return True
+        except redis.exceptions.ConnectionError as exc:
+            logger.warning("Unable to connect to Redis: {}".format(exc))
+        return False

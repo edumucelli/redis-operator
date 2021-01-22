@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from typing import Dict, List
+
 from charmhelpers.core import hookenv
 
 
@@ -48,38 +49,20 @@ class PodSpecBuilder:
                 "envConfig": self._build_env_conf_spec(),
                 # "volumeConfig": vol_config,
                 "kubernetes": {
-                    "readinessProbe": self._build_readiness_spec()
+                    "readinessProbe": self._build_readiness_spec(),
+                    "livenessProbe": self._build_liveness_spec()
                 },
             }],
-            # "serviceAccount": {  # Required because we're interacting with the k8s API in this charm.
-            #     "automountServiceAccountToken": True,
-            #     "roles": [
-            #         {
-            #             "global": True,
-            #             "rules": [
-            #                 {
-            #                     "apiGroups": [""],
-            #                     "resources": ["pods"],
-            #                     "verbs": ["get", "list", "patch"],
-            #                 },
-            #             ],
-            #         },
-            #     ],
-            # },
         }
-
-        # # After logging, attach our secrets.
-        # if config.get("image_username"):
-        #     image_details["username"] = config["image_username"]
-        # if config.get("image_password"):
-        #     image_details["password"] = config["image_password"]
 
         return spec
 
-    # def _build_image_spec(self):
-    #     return {
-    #         "imagePath": self.image_info,
-    #     }
+    def _build_liveness_spec(self):
+        return {
+            "exec": {"command": ["redis-cli", "ping"]},
+            "initialDelaySeconds": 45,
+            "timeoutSeconds": 5,
+        }
 
     def _build_readiness_spec(self):
         return {
