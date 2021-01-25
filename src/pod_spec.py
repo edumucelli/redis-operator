@@ -11,7 +11,7 @@
 # PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from typing import Dict, List
 
@@ -53,6 +53,7 @@ class PodSpecBuilder:
                     "livenessProbe": self._build_liveness_spec()
                 },
             }],
+            "kubernetesResources": {},
         }
 
         return spec
@@ -94,38 +95,6 @@ class PodSpecBuilder:
         env_config["JUJU_APPLICATION"] = self.name
 
         return env_config
-
-    def build_pod_resources(self) -> Dict:
-        """Compile and return our pod resources (e.g. ingresses)."""
-        resources = {
-            "kubernetesResources": {
-                "services": [{
-                    "name": self.name,
-                    "spec": {
-                        "type": "NodePort",  # NodePort to enable external connections
-                        # We require a stable IP address selected by k8s,
-                        # so must specify the empty string for clusterIP.
-                        # The default is the string 'None', which will
-                        # give you an unstable IP address (the Pod's
-                        # internal IP I believe).
-                        "clusterIP": "",
-                        "ports": [
-                            {
-                                "name": "redis",
-                                "port": 6379,
-                                "protocol": "TCP"
-                            }
-                        ],
-                        "selector": {
-                            "app.kubernetes.io/name": self.name,
-                            "role": "master"
-                        },
-                    },
-                }]
-            }
-        }
-
-        return resources
 
     @property
     def expected_units(self) -> List[str]:

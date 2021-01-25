@@ -12,23 +12,21 @@
 # PURPOSE.  See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 
 import yaml
-from client import RedisClient
 from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+
+from client import RedisClient
 from pod_spec import PodSpecBuilder
 
 logger = logging.getLogger(__name__)
-
-UNIT_ACTIVE_MSG = 'Pod is ready.'
-UNIT_ACTIVE_STATUS = ActiveStatus(UNIT_ACTIVE_MSG)
 
 # We expect the redis container to use the default port
 DEFAULT_PORT = 6379
@@ -70,7 +68,7 @@ class RedisCharm(CharmBase):
             image_info = self.image.fetch()
         except OCIImageResourceError:
             self.unit.status = BlockedStatus(
-                "Error fetching image information        # self._authed = True.")
+                "Error fetching image information.")
             return
 
         # Build Pod spec
@@ -83,10 +81,8 @@ class RedisCharm(CharmBase):
         spec = builder.build_pod_spec()
         self.log_debug(f"Pod spec:\n{yaml.dump(spec)}\n")
 
-        resources = builder.build_pod_resources()
-        self.log_debug(f"Pod resources:\n{yaml.dump(resources)}\n")
         # Only the leader can set_spec().
-        self.model.pod.set_spec(spec, resources)
+        self.model.pod.set_spec(spec)
 
         self.update_status(event)
         self.log_debug("Running configure_pod finished")
@@ -111,9 +107,10 @@ class RedisCharm(CharmBase):
             self.unit.status = WaitingStatus(status_message)
             return
 
-        self.log_debug(UNIT_ACTIVE_MSG)
-        self.unit.status = UNIT_ACTIVE_STATUS
-        self.app.status = ActiveStatus('Redis pod ready.')
+        status_message = 'Pod is ready.'
+        self.log_debug(status_message)
+        self.unit.status = ActiveStatus(status_message)
+        self.app.status = ActiveStatus('Redis is ready.')
 
     def on_start(self, event):
         """Initialize Redis
@@ -151,7 +148,7 @@ class RedisCharm(CharmBase):
 
     @staticmethod
     def log_debug(message: str):
-        logger.debug(f"[Redis] %s", message)
+        logger.debug("[Redis] {}".format(message))
 
     @property
     def redis(self):
