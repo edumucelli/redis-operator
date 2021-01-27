@@ -1,13 +1,25 @@
-# redis
+# redis-operator
 
 ## Description
 
-TODO: Describe your charm in a few paragraphs of Markdown
+The [Redis](https://www.redis.io/) operator provides in-memory data structure 
+store, used as a database, cache, and message broker. This repository contains a
+[Juju](https://jaas.ai/) Charm for deploying Redis on Kubernetes
+clusters.
 
-## Usage
+## Setup, build and deploy
 
-TODO: Provide high-level usage, such as required config or relations
+A typical setup using [snaps](https://snapcraft.io/), for deployments
+to a [microk8s](https://microk8s.io/) cluster can be done using the
+following commands
 
+    sudo snap install juju --classic
+    sudo snap install microk8s --classic
+    microk8s.enable dns storage
+    juju bootstrap microk8s micro
+    juju add-model redis-model
+    charmcraft build
+    juju deploy ./redis.charm --resource redis-image=redis:6.0
 
 ## Developing
 

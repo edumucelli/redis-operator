@@ -87,7 +87,6 @@ class PodSpecBuilder:
             "JUJU_POD_NAME": "metadata.name",
             "JUJU_POD_NAMESPACE": "metadata.namespace",
             "JUJU_POD_IP": "status.podIP",
-            # "JUJU_POD_SERVICE_ACCOUNT": "spec.serviceAccountName",
         }
         env_config = {k: {"field": {"path": p, "api-version": "v1"}} for k, p in config_fields.items()}
 
