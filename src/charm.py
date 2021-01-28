@@ -23,8 +23,8 @@ from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
-from src.client import RedisClient
-from src.pod_spec import PodSpecBuilder
+from client import RedisClient
+from pod_spec import PodSpecBuilder
 
 logger = logging.getLogger(__name__)
 
