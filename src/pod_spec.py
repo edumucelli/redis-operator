@@ -58,14 +58,14 @@ class PodSpecBuilder:
 
         return spec
 
-    def _build_liveness_spec(self):
+    def _build_liveness_spec(self) -> Dict:
         return {
             "exec": {"command": ["redis-cli", "ping"]},
             "initialDelaySeconds": 45,
             "timeoutSeconds": 5,
         }
 
-    def _build_readiness_spec(self):
+    def _build_readiness_spec(self) -> Dict:
         return {
             "tcpSocket": {
                 "port": self.port
@@ -74,7 +74,7 @@ class PodSpecBuilder:
             "periodSeconds": 5
         }
 
-    def _build_port_spec(self):
+    def _build_port_spec(self) -> List:
         return [{
             "name": "redis",
             "containerPort": self.port,
