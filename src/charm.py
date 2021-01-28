@@ -127,7 +127,7 @@ class RedisCharm(CharmBase):
         - Ready
         """
         if not self.unit.is_leader():
-            self.unit.status = ActiveStatus('Pod is ready.' )
+            self.unit.status = ActiveStatus('Pod is ready.')
             return
 
         if not self.redis.is_ready():
