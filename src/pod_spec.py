@@ -90,13 +90,13 @@ class PodSpecBuilder:
         }
         env_config = {k: {"field": {"path": p, "api-version": "v1"}} for k, p in config_fields.items()}
 
-        env_config["JUJU_EXPECTED_UNITS"] = " ".join(self.expected_units)
+        env_config["JUJU_EXPECTED_UNITS"] = " ".join(self.expected_units())
         env_config["JUJU_APPLICATION"] = self.name
 
         return env_config
 
-    @property
-    def expected_units(self) -> List[str]:
+    @staticmethod
+    def expected_units() -> List[str]:
         # Goal state looks like this:
         #
         # relations: {}

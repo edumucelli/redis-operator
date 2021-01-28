@@ -23,8 +23,8 @@ from ops.framework import StoredState
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
-from client import RedisClient
-from pod_spec import PodSpecBuilder
+from src.client import RedisClient
+from src.pod_spec import PodSpecBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,8 @@ class RedisCharm(CharmBase):
         super().__init__(*args)
         self.log_debug('Initializing charm')
 
-        self.state.set_default(redis_initialized=False)
+        self.state.set_default(pod_spec=None)
+
         self.image = OCIImageResource(self, "redis-image")
 
         self.framework.observe(self.on.start, self.on_start)
@@ -48,14 +49,39 @@ class RedisCharm(CharmBase):
         self.framework.observe(self.on.upgrade_charm, self.configure_pod)
         self.framework.observe(self.on.update_status, self.update_status)
 
-    def configure_pod(self, event):
+    def on_start(self, event):
+        """Initialize Redis
+
+        This event handler is deferred if initialization of Redis fails.
+        """
+        self.log_debug("Running on_start")
+        if not self.unit.is_leader():
+            self.unit.status = ActiveStatus('Pod is ready.')
+            return
+
+        if not self.redis.is_ready():
+            msg = 'Waiting for Redis ...'
+            self.unit.status = WaitingStatus(msg)
+            self.log_debug(msg)
+            event.defer()
+            return
+
+        self.pod_is_ready()
+        self.log_debug("Running on_start finished")
+
+    def on_stop(self, _):
+        """Mark terminating unit as inactive
+        """
+        self.unit.status = MaintenanceStatus('Pod is terminating.')
+
+    def configure_pod(self, _):
         """Applies the pod configuration
         """
         self.log_debug("Running configure_pod")
 
         if not self.unit.is_leader():
             self.log_debug("Spec changes ignored by non-leader")
-            self.update_status(event)
+            self.unit.status = ActiveStatus('Pod is ready.')
             return
 
         msg = 'Configuring pod.'
@@ -81,70 +107,40 @@ class RedisCharm(CharmBase):
         spec = builder.build_pod_spec()
         self.log_debug(f"Pod spec:\n{yaml.dump(spec)}\n")
 
-        # Only the leader can set_spec().
-        self.model.pod.set_spec(spec)
+        # Update pod spec if the generated one is different
+        # from the one previously applied
+        if self.state.pod_spec == spec:
+            self.log_debug("Discarding pod spec because it has not changed.")
+        else:
+            self.log_debug("Applying new pod spec.")
+            self.model.pod.set_spec(spec)
+            self.state.pod_spec = spec
 
-        self.update_status(event)
+        self.pod_is_ready()
         self.log_debug("Running configure_pod finished")
 
-    def update_status(self, event):
+    def update_status(self, _):
         """Set status for all units
 
         Status may be
         - Redis API server not reachable (service is not ready),
-        - Unit is active
+        - Ready
         """
         if not self.unit.is_leader():
-            self.unit.status = ActiveStatus()
+            self.unit.status = ActiveStatus('Pod is ready.' )
             return
 
         if not self.redis.is_ready():
-            self.unit.status = WaitingStatus('Redis not ready yet.')
+            self.unit.status = WaitingStatus('Waiting for Redis ...')
             return
 
-        if not self.state.redis_initialized:
-            status_message = "Redis not initialized."
-            self.unit.status = WaitingStatus(status_message)
-            return
+        self.pod_is_ready()
 
+    def pod_is_ready(self):
         status_message = 'Pod is ready.'
         self.log_debug(status_message)
         self.unit.status = ActiveStatus(status_message)
         self.app.status = ActiveStatus('Redis is ready.')
-
-    def on_start(self, event):
-        """Initialize Redis
-
-        This event handler is deferred if initialization of Redis fails.
-        """
-        self.log_debug("Running on_start")
-        if not self.unit.is_leader():
-            return
-
-        if not self.redis.is_ready():
-            msg = "Waiting for Redis Service."
-            self.unit.status = WaitingStatus(msg)
-            self.log_debug(msg)
-            event.defer()
-
-        if not self.state.redis_initialized:
-            msg = "Initializing Redis."
-            self.log_debug(msg)
-            self.unit.status = WaitingStatus(msg)
-            try:
-                self.state.redis_initialized = True
-                self.log_debug("Redis Initialized")
-            except Exception as e:
-                logger.info("Deferring on_start since : error={}".format(e))
-                event.defer()
-
-        self.update_status(event)
-        self.log_debug("Running on_start finished")
-
-    def on_stop(self, _):
-        """Mark terminating unit as inactive
-        """
-        self.unit.status = MaintenanceStatus('Pod is terminating.')
 
     @staticmethod
     def log_debug(message: str):

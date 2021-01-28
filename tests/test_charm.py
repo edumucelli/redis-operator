@@ -14,10 +14,16 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import unittest
-from unittest.mock import Mock
+from unittest import mock
 
-from charm import RedisCharm
+from oci_image import OCIImageResource, OCIImageResourceError
+from ops.model import \
+    ActiveStatus, WaitingStatus, MaintenanceStatus, BlockedStatus
 from ops.testing import Harness
+
+from src.charm import RedisCharm
+from src.client import RedisClient
+from src.pod_spec import PodSpecBuilder
 
 
 class TestCharm(unittest.TestCase):
@@ -26,33 +32,136 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         redis_resource = {
             "registrypath": "redis:6.0",
+            # "username" and "password" are useless, but oci-resource
+            # library fetch() fails if we do not provide them ...
             "username": "",
             "password": ""
         }
         self.harness.add_oci_resource("redis-image", redis_resource)
         self.harness.begin()
 
-    def test_config_changed(self):
-        harness = Harness(RedisCharm)
-        self.addCleanup(harness.cleanup)
-        harness.begin()
-        self.assertEqual(list(harness.charm._stored.things), [])
-        harness.update_config({"thing": "foo"})
-        self.assertEqual(list(harness.charm._stored.things), ["foo"])
+    def test_on_start_when_unit_is_not_leader(self):
+        # Given
+        self.harness.set_leader(False)
+        # When
+        self.harness.charm.on.start.emit()
+        # Then
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
 
-    def test_action(self):
-        harness = Harness(RedisCharm)
-        harness.begin()
-        # the harness doesn't (yet!) help much with actions themselves
-        action_event = Mock(params={"fail": ""})
-        harness.charm._on_fortune_action(action_event)
+    @mock.patch.object(RedisClient, 'is_ready')
+    def test_on_start_when_redis_is_not_ready(self, is_ready):
+        # Given
+        self.harness.set_leader(True)
+        is_ready.return_value = False
+        # When
+        self.harness.charm.on.start.emit()
+        # Then
+        is_ready.assert_called_once_with()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            WaitingStatus("Waiting for Redis ...")
+        )
 
-        self.assertTrue(action_event.set_results.called)
+    @mock.patch.object(RedisClient, 'is_ready')
+    def test_on_start_when_redis_is_ready(self, is_ready):
+        # Given
+        self.harness.set_leader(True)
+        is_ready.return_value = True
+        # When
+        self.harness.charm.on.start.emit()
+        # Then
+        is_ready.assert_called_once_with()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
 
-    def test_action_fail(self):
-        harness = Harness(RedisCharm)
-        harness.begin()
-        action_event = Mock(params={"fail": "fail this"})
-        harness.charm._on_fortune_action(action_event)
+    def test_on_stop(self):
+        # When
+        self.harness.charm.on.stop.emit()
+        # Then
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            MaintenanceStatus('Pod is terminating.')
+        )
 
-        self.assertEqual(action_event.fail.call_args, [("fail this",)])
+    def test_on_config_changed_when_unit_is_not_leader(self):
+        # Given
+        self.harness.set_leader(False)
+        # When
+        self.harness.charm.on.config_changed.emit()
+        # Then
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
+
+    @mock.patch.object(OCIImageResource, 'fetch')
+    def test_on_config_changed_when_unit_is_leader_but_image_fetch_breaks(self, fetch):
+        # Given
+        self.harness.set_leader(True)
+        fetch.side_effect = OCIImageResourceError("redis-image")
+        # When
+        self.harness.charm.on.config_changed.emit()
+        # Then
+        fetch.assert_called_once_with()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            BlockedStatus("Error fetching image information.")
+        )
+
+    @mock.patch.object(PodSpecBuilder, 'expected_units')
+    def test_on_config_changed_when_unit_is_leader(self, expected_units):
+        # Given
+        self.harness.set_leader(True)
+        expected_units.return_value = []
+        # When
+        self.harness.charm.on.config_changed.emit()
+        # Then
+        self.assertIsNotNone(self.harness.charm.state.pod_spec)
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
+
+    def test_on_update_status_when_unit_is_not_leader(self):
+        # Given
+        self.harness.set_leader(False)
+        # When
+        self.harness.charm.on.update_status.emit()
+        # Then
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
+
+    @mock.patch.object(RedisClient, 'is_ready')
+    def test_on_update_status_when_redis_is_not_ready(self, is_ready):
+        # Given
+        self.harness.set_leader(True)
+        is_ready.return_value = False
+        # When
+        self.harness.charm.on.update_status.emit()
+        # Then
+        is_ready.assert_called_once_with()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            WaitingStatus("Waiting for Redis ...")
+        )
+
+    @mock.patch.object(RedisClient, 'is_ready')
+    def test_on_update_status_when_redis_is_ready(self, is_ready):
+        # Given
+        self.harness.set_leader(True)
+        is_ready.return_value = True
+        # When
+        self.harness.charm.on.update_status.emit()
+        # Then
+        is_ready.assert_called_once_with()
+        self.assertEqual(
+            self.harness.charm.unit.status,
+            ActiveStatus('Pod is ready.')
+        )
